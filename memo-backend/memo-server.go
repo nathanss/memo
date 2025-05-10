@@ -162,8 +162,6 @@ func createMemoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllMemosHandler(w http.ResponseWriter, r *http.Request) {
-	// For simplicity, we'll iterate through the map and create a slice.
-	// In a real application, you might have more sophisticated querying.
 	var memos []Memo
 	for _, memo := range store.memos {
 		memos = append(memos, memo)
