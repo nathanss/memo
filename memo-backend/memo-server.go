@@ -14,7 +14,7 @@ import (
 	"github.com/golang-migrate/migrate/database/postgres"
 	_ "github.com/golang-migrate/migrate/source/file"
 	"github.com/gorilla/mux"
-	"github.com/jackc/pgx"
+	_ "github.com/lib/pq"
 )
 
 type Memo struct {
@@ -84,12 +84,14 @@ func (s *InMemoryMemoStore) DeleteMemo(id int) bool {
 	return false
 }
 
-var store *InMemoryMemoStore
+var (
+	store *InMemoryMemoStore
+	db    *sql.DB
+)
 
 func main() {
-
-	performDatabaseMigrations()
 	setupDatabaseConnection()
+	performDatabaseMigrations()
 
 	store = NewInMemoryMemoStore()
 	router := mux.NewRouter()
@@ -105,36 +107,31 @@ func main() {
 }
 
 func setupDatabaseConnection() {
-	connConfig, err := pgx.ParseConnectionString("postgres://localhost:5432/memo-db")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to parse connection string: %v\n", err)
-		os.Exit(1)
-	}
-
-	conn, err := pgx.Connect(connConfig)
+	var err error
+	db, err = sql.Open("postgres", "postgres://localhost:5432/memo-db?sslmode=disable")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
 	}
-	defer conn.Close()
+
+	// Test the connection
+	err = db.Ping()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to ping database: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func performDatabaseMigrations() {
-	db, err := sql.Open("postgres", "postgres://localhost:5432/memo-db?sslmode=disable")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to open database: %v\n", err)
-		os.Exit(1)
-	}
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
-
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create driver: %v\n", err)
 		os.Exit(1)
 	}
+
 	m, err := migrate.NewWithDatabaseInstance(
 		"file://migrations",
 		"postgres", driver)
-
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create migration instance: %v\n", err)
 		os.Exit(1)
